@@ -1,0 +1,53 @@
+# Agregar estos servicios a compose-apps.yml (ec2-apps), junto a
+# jobs-svc, catalog-svc, notify-svc, report-svc. audit-svc usa su
+# propia base PostgreSQL (audit-db), separada de las demas.
+
+services:
+  audit-db:
+    image: postgres:16-alpine
+    container_name: tallerpro-audit-db
+    environment:
+      POSTGRES_DB: tallerpro_audit
+      POSTGRES_USER: tallerpro
+      POSTGRES_PASSWORD: tallerpro
+    volumes:
+      - audit-db-data:/var/lib/postgresql/data
+    networks:
+      - tallerpro-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tallerpro -d tallerpro_audit"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  audit-svc:
+    build:
+      context: ../ms-tallerpro-audit
+      dockerfile: Dockerfile
+    container_name: tallerpro-audit-svc
+    depends_on:
+      audit-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: audit-db
+      DB_PORT: 5432
+      DB_NAME: tallerpro_audit
+      DB_USER: tallerpro
+      DB_PASSWORD: tallerpro
+      KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9092,kafka3:9092
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_AUDIT_API_CLIENT_ID: ${AZURE_AUDIT_API_CLIENT_ID}
+    ports:
+      - "8086:8086"
+    networks:
+      - tallerpro-net
+      - tallerpro-kafka-net   # red compartida con el compose de ec2-kafka
+
+volumes:
+  audit-db-data:
+
+networks:
+  tallerpro-net:
+    external: true
+  tallerpro-kafka-net:
+    external: true
