@@ -8,7 +8,7 @@ Microservicio de **auditoría y trazabilidad inmutable** para TallerPro. Consume
 
 - Consume `jobs.events` y `audit.timeline` de forma asíncrona (nunca llama de vuelta a otro microservicio).
 - Persiste cada evento como un registro **inmutable** (RF-15): `orderId`, `actor`, `rol`, `tipoEvento`, `timestamp`, `payload`.
-- Expone el timeline con filtros de actor, fecha y tipo de evento (RF-16), en modo **solo lectura**, reservado al rol **Auditor**.
+- Expone el timeline con filtros de actor, fecha y tipo de evento (RF-16), en modo **solo lectura**, reservado a los roles **Auditor** y **Admin** (caso, sección 6).
 - Verifica que el timeline de una orden cubra los 4 hitos clave: recepción, diagnóstico, reparación y entrega.
 
 ## Cómo garantiza la inmutabilidad
@@ -26,7 +26,7 @@ Spring Boot 3.3 · Java 17 · Spring Kafka · Spring Data JPA · PostgreSQL · F
 
 ```
 src/main/java/com/tallerpro/audit/
-├── config/       # Kafka consumer, seguridad JWT (rol Auditor), OpenAPI
+├── config/       # Kafka consumer, seguridad JWT (roles Auditor/Admin), OpenAPI
 ├── controller/   # Endpoints REST de solo lectura
 ├── dto/          # AuditEventMessage (payload Kafka) y DTOs de respuesta
 ├── kafka/        # Listener de jobs.events / audit.timeline
@@ -53,7 +53,9 @@ src/main/resources/
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `localhost` / `5432` / `tallerpro_audit` / `tallerpro` / `tallerpro` | Conexión a PostgreSQL |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Broker(s) Kafka |
 | `AZURE_TENANT_ID` | `tenant-id` | Tenant de Azure AD (issuer del JWT) |
-| `AZURE_AUDIT_API_CLIENT_ID` | `api-client-id` | Client ID de la App Registration (audience del JWT) |
+| `AZURE_API_CLIENT_ID` | `api-client-id` | Client ID de la App Registration (audience del JWT), el mismo para todos los MS |
+| `TALLERPRO_JWT_ENABLED` | `true` | `false` solo en desarrollo local sin tenant (usuario ficticio con `TALLERPRO_DEV_ROLES`, default `Auditor`) |
+| `SERVER_PORT` | `8086` | |
 
 ### Levantar
 
@@ -74,7 +76,9 @@ Ver `compose-audit-fragment.yml` para integrarlo en `compose-apps.yml`, con su p
 
 ## Endpoints principales
 
-Todos requieren `Authorization: Bearer <JWT>` con rol **Auditor**.
+Todos requieren `Authorization: Bearer <JWT>` con rol **Auditor** o **Admin**. Sin token → 401; otro rol → 403.
+
+Ejecución local sin Postgres/Kafka: `./mvnw spring-boot:test-run -Dspring-boot.run.profiles=test "-Dspring-boot.run.arguments=--tallerpro.security.jwt-enabled=false"`
 
 | Método | Ruta | Descripción |
 |---|---|---|
