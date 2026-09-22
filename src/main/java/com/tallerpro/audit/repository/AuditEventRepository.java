@@ -24,14 +24,21 @@ public interface AuditEventRepository extends JpaRepository<AuditEvent, Long> {
 
     boolean existsByEventId(String eventId);
 
-    /** RF-16: timeline con filtros opcionales de actor, rango de fechas y tipo de evento. */
+    /**
+     * RF-16: timeline con filtros opcionales de actor, rango de fechas y tipo de evento.
+     *
+     * Los `cast(...)` son necesarios en PostgreSQL: un parametro que solo
+     * aparece en `:p is null` no tiene de donde inferir su tipo y el driver
+     * responde "could not determine data type of parameter $N". H2 (los tests)
+     * no lo exige, por eso solo se ve contra la base real.
+     */
     @Query("""
             select ae from AuditEvent ae
-            where (:orderId is null or ae.orderId = :orderId)
-              and (:actorId is null or ae.actorId = :actorId)
-              and (:eventType is null or ae.eventType = :eventType)
-              and (:from is null or ae.eventTimestamp >= :from)
-              and (:to is null or ae.eventTimestamp <= :to)
+            where (cast(:orderId as String) is null or ae.orderId = :orderId)
+              and (cast(:actorId as String) is null or ae.actorId = :actorId)
+              and (cast(:eventType as String) is null or ae.eventType = :eventType)
+              and (cast(:from as Instant) is null or ae.eventTimestamp >= :from)
+              and (cast(:to as Instant) is null or ae.eventTimestamp <= :to)
             order by ae.eventTimestamp asc
             """)
     Page<AuditEvent> search(@Param("orderId") String orderId,

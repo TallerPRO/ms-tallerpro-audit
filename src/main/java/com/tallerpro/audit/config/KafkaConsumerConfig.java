@@ -58,7 +58,11 @@ public class KafkaConsumerConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
         factory.setConcurrency(3);
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        // MANUAL_IMMEDIATE y no RECORD: el listener recibe un `Acknowledgment` y
+        // confirma el offset el mismo. Con RECORD, Spring Kafka no inyecta ese
+        // argumento y todo mensaje termina en el DLT ("No Acknowledgment available
+        // as an argument"). Los tests no lo detectan: no levantan el contenedor.
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaOperations,
                 (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition()));

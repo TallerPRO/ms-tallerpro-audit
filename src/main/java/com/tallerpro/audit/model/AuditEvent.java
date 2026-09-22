@@ -76,8 +76,14 @@ public class AuditEvent {
     @Column(nullable = false)
     private Instant recordedAt;
 
-    /** Payload original del evento (JSON crudo), para trazabilidad completa. */
-    @Lob
+    /**
+     * Payload original del evento (JSON crudo), para trazabilidad completa.
+     *
+     * Sin @Lob a proposito: la columna es TEXT y en PostgreSQL @Lob sobre un
+     * String hace que el driver la trate como large object (OID); la lectura
+     * falla con "Large Objects may not be used in auto-commit mode". H2 no lo
+     * distingue, por eso los tests pasaban igual.
+     */
     @Column(columnDefinition = "TEXT")
     private String payload;
 }
