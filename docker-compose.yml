@@ -1,0 +1,54 @@
+# ms-tallerpro-audit + su PostgreSQL (esquema por Flyway). Requiere la infraestructura
+# levantada antes (../docker-compose.infra.yml): red tallerpro-net y Kafka.
+#
+#   docker compose up -d --build
+name: tallerpro-audit
+
+services:
+  ms-tallerpro-audit:
+    build: .
+    image: tallerpro/ms-tallerpro-audit:latest
+    container_name: ms-tallerpro-audit
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DB_HOST: db-audit
+      DB_PORT: 5432
+      DB_NAME: tallerpro_audit
+      DB_USER: tallerpro
+      DB_PASSWORD: ${AUDIT_DB_PASSWORD:-tallerpro}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      TALLERPRO_JWT_ENABLED: ${TALLERPRO_JWT_ENABLED:-false}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-tenant-id}
+      AZURE_API_CLIENT_ID: ${AZURE_API_CLIENT_ID:-api-client-id}
+    depends_on:
+      db-audit:
+        condition: service_healthy
+    networks:
+      - tallerpro-net
+
+  db-audit:
+    image: postgres:16-alpine
+    container_name: db-audit
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: tallerpro_audit
+      POSTGRES_USER: tallerpro
+      POSTGRES_PASSWORD: ${AUDIT_DB_PASSWORD:-tallerpro}
+    volumes:
+      - db-audit-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tallerpro -d tallerpro_audit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - tallerpro-net
+
+volumes:
+  db-audit-data:
+
+networks:
+  tallerpro-net:
+    external: true
