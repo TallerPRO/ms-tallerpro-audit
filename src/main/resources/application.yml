@@ -25,6 +25,9 @@ spring:
       group-id: ms-tallerpro-audit
       auto-offset-reset: earliest
       enable-auto-commit: false
+    admin:
+      # Aplica retention.ms de los DLT tambien si los topicos ya existian (no solo al crearlos).
+      modify-topic-configs: true
 
   security:
     oauth2:
@@ -44,6 +47,17 @@ app:
     topics:
       jobs-events: jobs.events
       audit-timeline: audit.timeline
+      # DLT PROPIOS de este consumidor: jobs.events no comparte DLT con report.
+      jobs-events-dlt: jobs.events.audit.DLT
+      audit-timeline-dlt: audit.timeline.DLT
+    audit-timeline:
+      # Compactado: nada se compacta antes de 7 dias (audit persiste cada evento en su BD).
+      min-compaction-lag-ms: 604800000
+    dlt:
+      partitions: 3
+      replicas: ${KAFKA_REPLICAS:1}
+      # 30 dias: tiempo para analizar y reprocesar los mensajes fallidos.
+      retention-ms: 2592000000
 
 management:
   endpoints:

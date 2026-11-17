@@ -15,6 +15,7 @@ spring:
       auto-startup: false
     admin:
       fail-fast: false
+      auto-create: false   # no intenta crear los DLT contra un broker inexistente
 
 tallerpro:
   security:
