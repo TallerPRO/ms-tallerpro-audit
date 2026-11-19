@@ -5,7 +5,10 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.TopicConfig;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -15,15 +18,20 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaAdmin;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaOperations;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
+import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -120,6 +128,29 @@ public class KafkaConsumerConfig {
         props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         return new DefaultKafkaConsumerFactory<>(props);
+    }
+
+    /**
+     * Template que usa el DeadLetterPublishingRecoverer para escribir en los DLT. El de Spring
+     * Boot por defecto usa StringSerializer y fallaria con el valor ya deserializado
+     * (AuditEventMessage), dejando el mensaje en un ciclo de reintentos en vez de ir al DLT.
+     * Por tipo: byte[] (fallo de deserializacion, bytes originales) tal cual, String tal cual,
+     * cualquier otro objeto como JSON sin headers de tipo.
+     */
+    @Bean
+    @SuppressWarnings("unchecked")
+    public KafkaTemplate<Object, Object> dltKafkaTemplate(KafkaProperties kafkaProperties) {
+        Map<Class<?>, Serializer<?>> delegados = new LinkedHashMap<>();
+        delegados.put(byte[].class, new ByteArraySerializer());
+        delegados.put(String.class, new StringSerializer());
+        JsonSerializer<Object> json = new JsonSerializer<>();
+        json.setAddTypeInfo(false);
+        delegados.put(Object.class, json);
+
+        Map<String, Object> props = new HashMap<>(kafkaProperties.buildProducerProperties(null));
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(props,
+                (Serializer<Object>) (Serializer<?>) new StringSerializer(),
+                new DelegatingByTypeSerializer(delegados, true)));
     }
 
     @Bean
